@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useRef, useState } from 'react'
-import { CheckCircle2, FileUp, Loader2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Circle, FileUp, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -17,67 +17,129 @@ import {
 const ANIO_ACTUAL = new Date().getFullYear()
 const ANIOS = Array.from({ length: ANIO_ACTUAL - 1999 }, (_, i) => ANIO_ACTUAL - i)
 
-type Estado =
-  | { tipo: 'inactivo' }
+const MAX_ARCHIVOS_POR_TANDA = 10
+
+type EstadoItem =
+  | { tipo: 'pendiente' }
   | { tipo: 'subiendo' }
-  | { tipo: 'error'; mensaje: string }
-  | { tipo: 'ok'; nombre: string; url: string }
+  | { tipo: 'error'; mensaje: string; reintentable: boolean }
+  | { tipo: 'ok'; url: string }
+
+interface Item {
+  clave: string
+  archivo: File
+  estado: EstadoItem
+}
+
+function validarArchivo(file: File): string | null {
+  if (!(MIME_PERMITIDOS as readonly string[]).includes(file.type)) {
+    return 'Solo se aceptan archivos PDF, JPG o PNG.'
+  }
+  if (file.size > MAX_BYTES) return 'El archivo supera los 20 MB.'
+  if (file.size === 0) return 'El archivo está vacío.'
+  return null
+}
+
+// Los que fallaron en el servidor (sin conexión, límite por hora) se pueden volver a intentar.
+function porSubir(it: Item) {
+  return it.estado.tipo === 'pendiente' || (it.estado.tipo === 'error' && it.estado.reintentable)
+}
+
+function claveDe(file: File) {
+  return `${file.name}-${file.size}-${file.lastModified}`
+}
 
 const campoClase =
   'h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
 export function UploadForm() {
   const { data: materias, mutate } = useMaterias()
-  const [archivo, setArchivo] = useState<File | null>(null)
+  const [items, setItems] = useState<Item[]>([])
   const [tipo, setTipo] = useState<TipoMaterial>('examen')
-  const [estado, setEstado] = useState<Estado>({ tipo: 'inactivo' })
+  const [subiendo, setSubiendo] = useState(false)
+  const [aviso, setAviso] = useState<string | null>(null)
   const [arrastrando, setArrastrando] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const ids = { materia: useId(), anio: useId(), archivo: useId(), ayuda: useId() }
 
-  function elegirArchivo(file: File | undefined) {
-    if (!file) return
-    if (!(MIME_PERMITIDOS as readonly string[]).includes(file.type)) {
-      setEstado({ tipo: 'error', mensaje: 'Solo se aceptan archivos PDF, JPG o PNG.' })
-      return
+  function actualizarItem(clave: string, estado: EstadoItem) {
+    setItems((prev) => prev.map((it) => (it.clave === clave ? { ...it, estado } : it)))
+  }
+
+  function agregarArchivos(lista: FileList | null | undefined) {
+    if (!lista?.length || subiendo) return
+    // Lo ya subido se descarta al elegir una tanda nueva.
+    const actuales = items.filter((it) => it.estado.tipo !== 'ok')
+    const claves = new Set(actuales.map((it) => it.clave))
+    const nuevos: Item[] = []
+    for (const file of Array.from(lista)) {
+      const clave = claveDe(file)
+      if (claves.has(clave)) continue
+      claves.add(clave)
+      const error = validarArchivo(file)
+      nuevos.push({
+        clave,
+        archivo: file,
+        estado: error
+          ? { tipo: 'error', mensaje: error, reintentable: false }
+          : { tipo: 'pendiente' },
+      })
     }
-    if (file.size > MAX_BYTES) {
-      setEstado({ tipo: 'error', mensaje: 'El archivo supera los 20 MB.' })
-      return
+    const todos = [...actuales, ...nuevos]
+    if (todos.length > MAX_ARCHIVOS_POR_TANDA) {
+      setAviso(`Podés subir hasta ${MAX_ARCHIVOS_POR_TANDA} archivos por vez.`)
+      setItems(todos.slice(0, MAX_ARCHIVOS_POR_TANDA))
+    } else {
+      setAviso(null)
+      setItems(todos)
     }
-    setArchivo(file)
-    setEstado({ tipo: 'inactivo' })
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  function quitarItem(clave: string) {
+    setItems((prev) => prev.filter((it) => it.clave !== clave))
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (!archivo) {
-      setEstado({ tipo: 'error', mensaje: 'Elegí un archivo para subir.' })
+    const aSubir = items.filter(porSubir)
+    if (!aSubir.length) {
+      setAviso('Elegí al menos un archivo para subir.')
       return
     }
     const form = new FormData(e.currentTarget)
-    setEstado({ tipo: 'subiendo' })
-    try {
-      const subido = await subirMaterial({
-        materia: String(form.get('materia')),
-        tipo,
-        anio: Number(form.get('anio')),
-        archivo,
-        website: String(form.get('website') ?? ''),
-      })
-      setEstado({ tipo: 'ok', nombre: subido.nombre, url: subido.url })
-      setArchivo(null)
-      if (inputRef.current) inputRef.current.value = ''
-      mutate()
-    } catch (err) {
-      setEstado({
-        tipo: 'error',
-        mensaje: err instanceof Error ? err.message : 'No se pudo subir el archivo.',
-      })
+    const materia = String(form.get('materia') ?? '')
+    if (!materia) {
+      setAviso('Elegí una materia.')
+      return
     }
+    const anio = Number(form.get('anio'))
+    const website = String(form.get('website') ?? '')
+
+    setAviso(null)
+    setSubiendo(true)
+    let subidos = 0
+    // De a uno: Apps Script procesa las subidas en fila y así cada archivo muestra su propio resultado.
+    for (const it of aSubir) {
+      actualizarItem(it.clave, { tipo: 'subiendo' })
+      try {
+        const subido = await subirMaterial({ materia, tipo, anio, archivo: it.archivo, website })
+        actualizarItem(it.clave, { tipo: 'ok', url: subido.url })
+        subidos++
+      } catch (err) {
+        actualizarItem(it.clave, {
+          tipo: 'error',
+          mensaje: err instanceof Error ? err.message : 'No se pudo subir el archivo.',
+          reintentable: true,
+        })
+      }
+    }
+    setSubiendo(false)
+    if (subidos > 0) mutate()
   }
 
-  const subiendo = estado.tipo === 'subiendo'
+  const pendientes = items.filter(porSubir).length
+  const subidosOk = items.filter((it) => it.estado.tipo === 'ok').length
 
   return (
     <section
@@ -94,7 +156,8 @@ export function UploadForm() {
           Subir material
         </h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          PDF, JPG o PNG de hasta 20 MB. Se guarda en el Drive del proyecto.
+          PDF, JPG o PNG de hasta 20 MB cada uno, hasta {MAX_ARCHIVOS_POR_TANDA} por vez. Se guardan en
+          el Drive del proyecto.
         </p>
       </div>
 
@@ -164,7 +227,7 @@ export function UploadForm() {
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor={ids.archivo} className="text-sm font-medium">
-            Archivo
+            Archivos
           </label>
           <div
             onDragOver={(e) => {
@@ -175,7 +238,7 @@ export function UploadForm() {
             onDrop={(e) => {
               e.preventDefault()
               setArrastrando(false)
-              elegirArchivo(e.dataTransfer.files[0])
+              agregarArchivos(e.dataTransfer.files)
             }}
             className={cn(
               'relative flex flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50',
@@ -183,29 +246,65 @@ export function UploadForm() {
             )}
           >
             <FileUp className="size-6 text-muted-foreground" aria-hidden="true" />
-            {archivo ? (
-              <p className="flex max-w-full flex-col text-sm">
-                <span className="truncate font-medium">{archivo.name}</span>
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {formatearTamano(archivo.size)}
-                </span>
-              </p>
-            ) : (
-              <p id={ids.ayuda} className="text-sm leading-relaxed text-muted-foreground">
-                <span className="font-medium text-primary">Elegí un archivo</span> o arrastralo acá
-              </p>
-            )}
+            <p id={ids.ayuda} className="text-sm leading-relaxed text-muted-foreground">
+              <span className="font-medium text-primary">Elegí uno o varios archivos</span> o
+              arrastralos acá
+            </p>
             <input
               ref={inputRef}
               id={ids.archivo}
               type="file"
+              multiple
+              disabled={subiendo}
               accept="application/pdf,image/jpeg,image/png"
               aria-describedby={ids.ayuda}
-              onChange={(e) => elegirArchivo(e.target.files?.[0])}
+              onChange={(e) => agregarArchivos(e.target.files)}
               className="absolute inset-0 cursor-pointer opacity-0"
             />
           </div>
         </div>
+
+        {items.length > 0 && (
+          <ul className="flex flex-col gap-1.5" aria-label="Archivos elegidos">
+            {items.map((it) => (
+              <li
+                key={it.clave}
+                className="flex items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+              >
+                <IconoEstado estado={it.estado} />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate font-medium">{it.archivo.name}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {formatearTamano(it.archivo.size)}
+                  </span>
+                  {it.estado.tipo === 'error' && (
+                    <span className="text-xs text-destructive">{it.estado.mensaje}</span>
+                  )}
+                  {it.estado.tipo === 'ok' && (
+                    <a
+                      href={it.estado.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      Ver archivo
+                    </a>
+                  )}
+                </div>
+                {!subiendo && it.estado.tipo !== 'ok' && (
+                  <button
+                    type="button"
+                    onClick={() => quitarItem(it.clave)}
+                    aria-label={`Quitar ${it.archivo.name}`}
+                    className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
 
         <div aria-hidden="true" className="hidden">
           <label>
@@ -217,7 +316,7 @@ export function UploadForm() {
         <Button
           type="submit"
           size="lg"
-          disabled={subiendo || !materias?.length}
+          disabled={subiendo || !materias?.length || pendientes === 0}
           className="h-10 font-display text-base font-semibold uppercase tracking-wider"
         >
           {subiendo ? (
@@ -225,26 +324,24 @@ export function UploadForm() {
               <Loader2 className="animate-spin" aria-hidden="true" />
               Subiendo…
             </>
+          ) : items.some((it) => it.estado.tipo === 'error' && it.estado.reintentable) ? (
+            'Reintentar'
+          ) : pendientes > 1 ? (
+            `Subir ${pendientes} archivos`
           ) : (
             'Subir'
           )}
         </Button>
 
         <div aria-live="polite" className="text-sm leading-relaxed">
-          {estado.tipo === 'error' && <p className="text-destructive">{estado.mensaje}</p>}
-          {estado.tipo === 'ok' && (
+          {aviso && <p className="text-destructive">{aviso}</p>}
+          {!subiendo && subidosOk > 0 && (
             <p className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" aria-hidden="true" />
               <span>
-                Listo, gracias por compartir.{' '}
-                <a
-                  href={estado.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  Ver archivo
-                </a>
+                {subidosOk === 1
+                  ? 'Listo, se subió 1 archivo. Gracias por compartir.'
+                  : `Listo, se subieron ${subidosOk} archivos. Gracias por compartir.`}
               </span>
             </p>
           )}
@@ -257,4 +354,18 @@ export function UploadForm() {
       </p>
     </section>
   )
+}
+
+function IconoEstado({ estado }: { estado: EstadoItem }) {
+  const clase = 'mt-0.5 size-4 shrink-0'
+  switch (estado.tipo) {
+    case 'subiendo':
+      return <Loader2 className={cn(clase, 'animate-spin text-primary')} aria-label="Subiendo" />
+    case 'ok':
+      return <CheckCircle2 className={cn(clase, 'text-emerald-500')} aria-label="Subido" />
+    case 'error':
+      return <AlertCircle className={cn(clase, 'text-destructive')} aria-label="Error" />
+    default:
+      return <Circle className={cn(clase, 'text-muted-foreground')} aria-label="Pendiente" />
+  }
 }
