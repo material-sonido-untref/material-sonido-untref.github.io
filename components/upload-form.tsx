@@ -59,8 +59,23 @@ export function UploadForm() {
   const [subiendo, setSubiendo] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
   const [arrastrando, setArrastrando] = useState(false)
+  const [materia, setMateria] = useState('')
+  const [faltaMateria, setFaltaMateria] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const ids = { materia: useId(), anio: useId(), archivo: useId(), ayuda: useId() }
+  const materiaRef = useRef<HTMLSelectElement>(null)
+  const ids = {
+    materia: useId(),
+    materiaError: useId(),
+    anio: useId(),
+    archivo: useId(),
+    ayuda: useId(),
+  }
+
+  function pedirMateria() {
+    setFaltaMateria(true)
+    materiaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    materiaRef.current?.focus({ preventScroll: true })
+  }
 
   function actualizarItem(clave: string, estado: EstadoItem) {
     setItems((prev) => prev.map((it) => (it.clave === clave ? { ...it, estado } : it)))
@@ -94,6 +109,7 @@ export function UploadForm() {
       setItems(todos)
     }
     if (inputRef.current) inputRef.current.value = ''
+    if (!materia && nuevos.some((it) => it.estado.tipo === 'pendiente')) pedirMateria()
   }
 
   function quitarItem(clave: string) {
@@ -107,12 +123,11 @@ export function UploadForm() {
       setAviso('Elegí al menos un archivo para subir.')
       return
     }
-    const form = new FormData(e.currentTarget)
-    const materia = String(form.get('materia') ?? '')
     if (!materia) {
-      setAviso('Elegí una materia.')
+      pedirMateria()
       return
     }
+    const form = new FormData(e.currentTarget)
     const anio = Number(form.get('anio'))
     const website = String(form.get('website') ?? '')
 
@@ -167,12 +182,22 @@ export function UploadForm() {
             Materia
           </label>
           <select
+            ref={materiaRef}
             id={ids.materia}
             name="materia"
             required
-            disabled={!materias?.length}
-            defaultValue=""
-            className={campoClase}
+            disabled={!materias?.length || subiendo}
+            value={materia}
+            onChange={(e) => {
+              setMateria(e.target.value)
+              setFaltaMateria(false)
+            }}
+            aria-invalid={faltaMateria}
+            aria-describedby={faltaMateria ? ids.materiaError : undefined}
+            className={cn(
+              campoClase,
+              faltaMateria && 'border-destructive ring-3 ring-destructive/30',
+            )}
           >
             <option value="" disabled>
               {materias ? 'Elegí una materia' : 'Cargando materias…'}
@@ -183,6 +208,11 @@ export function UploadForm() {
               </option>
             ))}
           </select>
+          {faltaMateria && (
+            <p id={ids.materiaError} role="alert" className="text-sm text-destructive">
+              Elegí la materia a la que pertenecen los archivos.
+            </p>
+          )}
         </div>
 
         <fieldset className="flex flex-col gap-1.5">
