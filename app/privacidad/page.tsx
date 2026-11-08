@@ -48,6 +48,10 @@ export default function Privacidad() {
             el mail de quien lo subió.
           </li>
           <li>
+            <strong>Votos y descargas:</strong> qué archivos marcaste como “Me sirvió” y cuáles
+            abriste. En el sitio solo se muestran los totales, nunca quién votó o descargó.
+          </li>
+          <li>
             <strong>En tu navegador:</strong> guardamos la sesión de Google para que no tengas que
             iniciarla en cada visita. Se borra al tocar “Salir”. No usamos cookies de publicidad
             ni herramientas de seguimiento.
@@ -61,7 +65,11 @@ export default function Privacidad() {
           <li>Poder contactar o dar de baja a quien suba algo que no corresponde.</li>
           <li>Llevar un registro de lo que se sube al repositorio.</li>
         </ul>
-        <p>No vendemos ni compartimos tus datos con nadie, y tu mail no se muestra en el sitio.</p>
+        <p>
+          No vendemos ni compartimos tus datos con nadie, y tu mail no se muestra en el sitio. Si
+          subís material, al lado de cada archivo y en el ranking de aportantes aparece tu nombre
+          abreviado (por ejemplo, “Enzo R.”).
+        </p>
       </Seccion>
 
       <Seccion titulo="Dónde se guardan y quién los ve">

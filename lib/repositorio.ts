@@ -23,6 +23,22 @@ export interface Archivo {
   fecha: string
   tipo: TipoMaterial
   anio: number | null
+  votos: number
+  descargas: number
+  /** Nombre abreviado de quien lo subió ("Enzo R."); null si se cargó a mano en Drive. */
+  autor: string | null
+}
+
+export interface Aportante {
+  nombre: string
+  archivos: number
+  votos: number
+  puntos: number
+}
+
+export interface Repositorio {
+  materias: Materia[]
+  ranking: Aportante[]
 }
 
 export interface Materia {
@@ -56,18 +72,24 @@ type Respuesta<T> = ({ ok: true } & T) | { ok: false; error: string }
 
 const ERROR_CONEXION = 'No se pudo conectar con el repositorio.'
 
-async function fetchMaterias(url: string): Promise<Materia[]> {
+async function fetchRepositorio(url: string): Promise<Repositorio> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(ERROR_CONEXION)
-  const data = (await res.json()) as Respuesta<{ materias: Materia[] }>
+  const data = (await res.json()) as Respuesta<Repositorio>
   if (!data.ok) throw new Error(data.error)
-  return data.materias
+  return { materias: data.materias, ranking: data.ranking ?? [] }
+}
+
+/** Listado, votos y ranking vienen juntos; los dos hooks comparten la misma caché. */
+export function useRepositorio() {
+  return useSWR(APPS_SCRIPT_URL || null, fetchRepositorio, {
+    revalidateOnFocus: false,
+  })
 }
 
 export function useMaterias() {
-  return useSWR(APPS_SCRIPT_URL || null, fetchMaterias, {
-    revalidateOnFocus: false,
-  })
+  const { data, ...resto } = useRepositorio()
+  return { ...resto, data: data?.materias }
 }
 
 function leerComoBase64(file: File): Promise<string> {
@@ -101,11 +123,22 @@ async function enviar<T>(cuerpo: Record<string, unknown>): Promise<T> {
 }
 
 export async function iniciarSesion(token: string) {
-  const { usuario, solicitud } = await enviar<{ usuario: Usuario; solicitud: Solicitud | null }>({
-    accion: 'sesion',
-    token,
-  })
-  return { usuario, solicitud }
+  const datos = await enviar<{
+    usuario: Usuario
+    solicitud: Solicitud | null
+    misVotos?: string[]
+    misArchivos?: string[]
+  }>({ accion: 'sesion', token })
+  return {
+    usuario: datos.usuario,
+    solicitud: datos.solicitud,
+    misVotos: datos.misVotos ?? [],
+    misArchivos: datos.misArchivos ?? [],
+  }
+}
+
+export async function votarArchivo(token: string, clave: string, voto: boolean) {
+  return enviar<{ votado: boolean; votos: number }>({ accion: 'votar', token, clave, voto })
 }
 
 export async function solicitarColaborador(token: string, curso: string, motivo: string) {

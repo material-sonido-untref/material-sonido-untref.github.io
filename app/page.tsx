@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { APPS_SCRIPT_URL } from '@/lib/config'
 import { MaterialBrowser } from '@/components/material-browser'
+import { RankingAportantes } from '@/components/ranking-aportantes'
 import { SetupNotice } from '@/components/setup-notice'
 import { SiteHeader } from '@/components/site-header'
 import { UploadForm } from '@/components/upload-form'
@@ -16,8 +17,9 @@ export default function Page() {
         {configurado ? (
           <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
             <MaterialBrowser />
-            <div className="lg:sticky lg:top-6">
+            <div className="flex flex-col gap-6">
               <UploadForm />
+              <RankingAportantes />
             </div>
           </div>
         ) : (

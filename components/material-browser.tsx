@@ -1,7 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ExternalLink, FileText, ImageIcon, Loader2, Lock, RotateCw, Search } from 'lucide-react'
+import {
+  Download,
+  ExternalLink,
+  FileText,
+  ImageIcon,
+  Loader2,
+  Lock,
+  RotateCw,
+  Search,
+  ThumbsUp,
+} from 'lucide-react'
 import { BotonGoogle } from '@/components/boton-google'
 import { cn } from '@/lib/utils'
 import {
@@ -9,7 +19,8 @@ import {
   pedirEnlace,
   puedeDescargar,
   TIPOS,
-  useMaterias,
+  useRepositorio,
+  votarArchivo,
   type Archivo,
   type TipoMaterial,
 } from '@/lib/repositorio'
@@ -19,13 +30,69 @@ const TODAS = '__todas__'
 
 type FilaArchivo = Archivo & { materia: string }
 
+const ORDENES = [
+  { value: 'recientes', label: 'Recientes' },
+  { value: 'utiles', label: 'Más útiles' },
+] as const
+type Orden = (typeof ORDENES)[number]['value']
+
+function compararPorOrden(orden: Orden) {
+  return (a: FilaArchivo, b: FilaArchivo) =>
+    orden === 'utiles'
+      ? b.votos - a.votos || b.descargas - a.descargas || b.fecha.localeCompare(a.fecha)
+      : b.fecha.localeCompare(a.fecha)
+}
+
+function Segmentado<T extends string>({
+  leyenda,
+  nombre,
+  opciones,
+  valor,
+  onCambio,
+}: {
+  leyenda: string
+  nombre: string
+  opciones: readonly { value: T; label: string }[]
+  valor: T
+  onCambio: (valor: T) => void
+}) {
+  return (
+    <fieldset className="flex gap-1 rounded-lg bg-muted p-1">
+      <legend className="sr-only">{leyenda}</legend>
+      {opciones.map((o) => (
+        <label
+          key={o.value}
+          className={cn(
+            'cursor-pointer rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50',
+            valor === o.value
+              ? 'bg-card font-medium text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <input
+            type="radio"
+            name={nombre}
+            value={o.value}
+            checked={valor === o.value}
+            onChange={() => onCambio(o.value)}
+            className="sr-only"
+          />
+          {o.label}
+        </label>
+      ))}
+    </fieldset>
+  )
+}
+
 export function MaterialBrowser() {
-  const { data: materias, error, isLoading, mutate } = useMaterias()
+  const { data, error, isLoading, mutate } = useRepositorio()
+  const materias = data?.materias
   const sesion = useSesion()
   const descargable = sesion.estado === 'conectado' && !!sesion.usuario && puedeDescargar(sesion.usuario.rol)
   const [materiaActiva, setMateriaActiva] = useState(TODAS)
   const [tipo, setTipo] = useState<TipoMaterial | 'todos'>('todos')
   const [busqueda, setBusqueda] = useState('')
+  const [orden, setOrden] = useState<Orden>('recientes')
 
   const filas = useMemo<FilaArchivo[]>(() => {
     if (!materias) return []
@@ -40,8 +107,8 @@ export function MaterialBrowser() {
           a.nombre.toLocaleLowerCase('es').includes(termino) ||
           a.materia.toLocaleLowerCase('es').includes(termino),
       )
-      .sort((a, b) => b.fecha.localeCompare(a.fecha))
-  }, [materias, materiaActiva, tipo, busqueda])
+      .sort(compararPorOrden(orden))
+  }, [materias, materiaActiva, tipo, busqueda, orden])
 
   return (
     <section aria-labelledby="buscar-title" className="flex min-w-0 flex-col">
@@ -95,7 +162,7 @@ export function MaterialBrowser() {
       </div>
 
       <div className="flex flex-col rounded-b-xl rounded-tr-xl border border-border bg-card">
-        <div className="flex flex-col gap-3 border-b border-border p-4 md:flex-row md:items-center">
+        <div className="flex flex-col gap-3 border-b border-border p-4">
           <label className="relative flex-1">
             <span className="sr-only">Buscar por nombre o materia</span>
             <Search
@@ -110,30 +177,22 @@ export function MaterialBrowser() {
               className="h-10 w-full rounded-lg border border-input bg-background pr-3 pl-9 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </label>
-          <fieldset className="flex gap-1 rounded-lg bg-muted p-1">
-            <legend className="sr-only">Tipo de material</legend>
-            {[{ value: 'todos', label: 'Todos' } as const, ...TIPOS].map((t) => (
-              <label
-                key={t.value}
-                className={cn(
-                  'cursor-pointer rounded-md px-3 py-1.5 text-sm transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50',
-                  tipo === t.value
-                    ? 'bg-card font-medium text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                <input
-                  type="radio"
-                  name="filtro-tipo"
-                  value={t.value}
-                  checked={tipo === t.value}
-                  onChange={() => setTipo(t.value)}
-                  className="sr-only"
-                />
-                {t.label}
-              </label>
-            ))}
-          </fieldset>
+          <div className="flex flex-wrap gap-2">
+            <Segmentado
+              leyenda="Tipo de material"
+              nombre="filtro-tipo"
+              opciones={[{ value: 'todos', label: 'Todos' } as const, ...TIPOS]}
+              valor={tipo}
+              onCambio={setTipo}
+            />
+            <Segmentado
+              leyenda="Ordenar por"
+              nombre="orden"
+              opciones={ORDENES}
+              valor={orden}
+              onCambio={setOrden}
+            />
+          </div>
         </div>
 
         <AvisoDescarga />
@@ -201,8 +260,10 @@ function AvisoDescarga() {
 }
 
 function FilaMaterial({ archivo, descargable }: { archivo: FilaArchivo; descargable: boolean }) {
-  const { obtenerToken } = useSesion()
+  const { obtenerToken, misVotos, misArchivos, marcarVoto } = useSesion()
+  const { mutate } = useRepositorio()
   const [abriendo, setAbriendo] = useState(false)
+  const [votando, setVotando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const esImagen = archivo.mimeType.startsWith('image/')
   const Icono = esImagen ? ImageIcon : FileText
@@ -236,6 +297,43 @@ function FilaMaterial({ archivo, descargable }: { archivo: FilaArchivo; descarga
     }
   }
 
+  const votado = misVotos.has(archivo.clave)
+  const propio = misArchivos.has(archivo.clave)
+
+  function fijarVotos(votos: number) {
+    mutate(
+      (actual) =>
+        actual && {
+          ...actual,
+          materias: actual.materias.map((m) => ({
+            ...m,
+            archivos: m.archivos.map((a) => (a.clave === archivo.clave ? { ...a, votos } : a)),
+          })),
+        },
+      { revalidate: false },
+    )
+  }
+
+  async function alternarVoto() {
+    setError(null)
+    const nuevo = !votado
+    const anterior = archivo.votos
+    // Se muestra el cambio al instante y se corrige si el servidor dice otra cosa.
+    marcarVoto(archivo.clave, nuevo)
+    fijarVotos(Math.max(0, anterior + (nuevo ? 1 : -1)))
+    setVotando(true)
+    try {
+      const resultado = await votarArchivo(obtenerToken(), archivo.clave, nuevo)
+      fijarVotos(resultado.votos)
+    } catch (err) {
+      marcarVoto(archivo.clave, !nuevo)
+      fijarVotos(anterior)
+      setError(err instanceof Error ? err.message : 'No se pudo registrar el voto.')
+    } finally {
+      setVotando(false)
+    }
+  }
+
   const contenido = (
     <>
       <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
@@ -258,29 +356,79 @@ function FilaMaterial({ archivo, descargable }: { archivo: FilaArchivo; descarga
           {archivo.anio && <span className="tabular-nums">{archivo.anio}</span>}
           <span aria-hidden="true">·</span>
           <span className="tabular-nums">{formatearTamano(archivo.tamano)}</span>
+          {archivo.autor && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>por {archivo.autor}</span>
+            </>
+          )}
+          {archivo.descargas > 0 && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <Download className="size-3" aria-hidden="true" />
+                {archivo.descargas}
+                <span className="sr-only">{archivo.descargas === 1 ? 'descarga' : 'descargas'}</span>
+              </span>
+            </>
+          )}
         </span>
         {error && <span className="text-xs text-destructive">{error}</span>}
       </span>
     </>
   )
 
+  const etiquetaVotos = `${archivo.votos} ${archivo.votos === 1 ? 'persona dice' : 'personas dicen'} que le sirvió`
+  const voto =
+    descargable && !propio ? (
+      <button
+        type="button"
+        onClick={alternarVoto}
+        disabled={votando}
+        aria-pressed={votado}
+        aria-label={`Me sirvió. ${etiquetaVotos}`}
+        title={votado ? 'Quitar "Me sirvió"' : 'Me sirvió'}
+        className={cn(
+          'flex shrink-0 items-center gap-1.5 self-center rounded-md border px-2.5 py-1.5 text-sm tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+          votado
+            ? 'border-primary/40 bg-primary/10 font-medium text-primary'
+            : 'border-border text-muted-foreground hover:text-foreground',
+        )}
+      >
+        <ThumbsUp className={cn('size-4', votado && 'fill-current')} aria-hidden="true" />
+        {archivo.votos}
+      </button>
+    ) : (
+      <span
+        title={propio ? 'Es tu material' : 'Iniciá sesión para votar'}
+        className="flex shrink-0 items-center gap-1.5 self-center px-2.5 py-1.5 text-sm text-muted-foreground tabular-nums"
+      >
+        <ThumbsUp className="size-4" aria-hidden="true" />
+        {archivo.votos}
+        <span className="sr-only">{etiquetaVotos}</span>
+      </span>
+    )
+
   if (!descargable) {
     return (
-      <li className="flex items-center gap-4 px-4 py-3">
-        {contenido}
-        <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <span className="sr-only">(iniciá sesión para descargar)</span>
+      <li className="flex items-center gap-2 pr-2">
+        <div className="flex min-w-0 flex-1 items-center gap-4 py-3 pl-4">
+          {contenido}
+          <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="sr-only">(iniciá sesión para descargar)</span>
+        </div>
+        {voto}
       </li>
     )
   }
 
   return (
-    <li>
+    <li className="flex items-center gap-2 pr-2">
       <button
         type="button"
         onClick={abrir}
         disabled={abriendo}
-        className="group flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none disabled:cursor-wait"
+        className="group flex min-w-0 flex-1 items-center gap-4 py-3 pl-4 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none disabled:cursor-wait"
       >
         {contenido}
         {abriendo ? (
@@ -293,6 +441,7 @@ function FilaMaterial({ archivo, descargable }: { archivo: FilaArchivo; descarga
         )}
         <span className="sr-only">(abre en Google Drive)</span>
       </button>
+      {voto}
     </li>
   )
 }

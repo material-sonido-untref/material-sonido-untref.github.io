@@ -45,6 +45,11 @@ interface ValorSesion {
   usuario: Usuario | null
   solicitud: Solicitud | null
   setSolicitud(solicitud: Solicitud | null): void
+  /** Claves de los archivos que la persona marcó como "Me sirvió". */
+  misVotos: ReadonlySet<string>
+  marcarVoto(clave: string, votado: boolean): void
+  /** Claves de los archivos que subió la persona (no los puede votar). */
+  misArchivos: ReadonlySet<string>
   error: string | null
   googleListo: boolean
   /** Devuelve un token vigente o tira un error con un mensaje para mostrar. */
@@ -110,6 +115,8 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
   const [estado, setEstado] = useState<Estado>('cargando')
   const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null)
+  const [misVotos, setMisVotos] = useState<ReadonlySet<string>>(new Set())
+  const [misArchivos, setMisArchivos] = useState<ReadonlySet<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
   const [googleListo, setGoogleListo] = useState(false)
   const tokenRef = useRef<TokenGuardado | null>(null)
@@ -119,6 +126,8 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
     escribirGuardado(null)
     setUsuario(null)
     setSolicitud(null)
+    setMisVotos(new Set())
+    setMisArchivos(new Set())
     setEstado('anonimo')
   }, [])
 
@@ -132,6 +141,8 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
         escribirGuardado(guardado)
         setUsuario(datos.usuario)
         setSolicitud(datos.solicitud)
+        setMisVotos(new Set(datos.misVotos))
+        setMisArchivos(new Set(datos.misArchivos))
         setEstado('conectado')
       } catch (err) {
         olvidarSesion()
@@ -175,6 +186,15 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
     throw new Error(MENSAJE_SESION_VENCIDA)
   }, [olvidarSesion])
 
+  const marcarVoto = useCallback((clave: string, votado: boolean) => {
+    setMisVotos((prev) => {
+      const nuevo = new Set(prev)
+      if (votado) nuevo.add(clave)
+      else nuevo.delete(clave)
+      return nuevo
+    })
+  }, [])
+
   const cerrarSesion = useCallback(() => {
     window.google?.accounts.id.disableAutoSelect()
     olvidarSesion()
@@ -182,8 +202,20 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
   }, [olvidarSesion])
 
   const valor = useMemo<ValorSesion>(
-    () => ({ estado, usuario, solicitud, setSolicitud, error, googleListo, obtenerToken, cerrarSesion }),
-    [estado, usuario, solicitud, error, googleListo, obtenerToken, cerrarSesion],
+    () => ({
+      estado,
+      usuario,
+      solicitud,
+      setSolicitud,
+      misVotos,
+      marcarVoto,
+      misArchivos,
+      error,
+      googleListo,
+      obtenerToken,
+      cerrarSesion,
+    }),
+    [estado, usuario, solicitud, misVotos, marcarVoto, misArchivos, error, googleListo, obtenerToken, cerrarSesion],
   )
 
   return <ContextoSesion.Provider value={valor}>{children}</ContextoSesion.Provider>
