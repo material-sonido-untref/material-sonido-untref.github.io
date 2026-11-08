@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { APPS_SCRIPT_URL } from '@/lib/config'
 import { MaterialBrowser } from '@/components/material-browser'
 import { SetupNotice } from '@/components/setup-notice'
@@ -25,7 +26,10 @@ export default function Page() {
       <footer className="border-t border-border">
         <p className="mx-auto max-w-6xl px-4 py-6 text-xs leading-relaxed text-muted-foreground">
           Proyecto independiente hecho por y para alumnos de Ingeniería de Sonido. No es un sitio
-          oficial de la Universidad Nacional de Tres de Febrero. Archivos alojados en Google Drive.
+          oficial de la Universidad Nacional de Tres de Febrero. Archivos alojados en Google Drive.{' '}
+          <Link href="/privacidad/" className="underline underline-offset-4 hover:text-foreground">
+            Política de privacidad
+          </Link>
         </p>
       </footer>
     </>
