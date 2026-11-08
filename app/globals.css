@@ -161,3 +161,14 @@
     animation: none;
   }
 }
+
+/*
+ * Google dibuja sus botones y el aviso "Acceder con Google" (One Tap) en iframes
+ * de esquema claro. Con la página en esquema oscuro, el navegador les pinta un
+ * fondo blanco detrás; con esquema claro en el propio iframe queda transparente.
+ */
+#credential_picker_container,
+#credential_picker_iframe,
+iframe[src*='accounts.google.com/gsi/'] {
+  color-scheme: light;
+}

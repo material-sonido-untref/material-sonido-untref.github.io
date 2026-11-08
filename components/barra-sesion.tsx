@@ -21,7 +21,7 @@ export function BarraSesion() {
   }
 
   if (estado === 'anonimo' || !usuario) {
-    return <BotonGoogle tamano="medium" />
+    return <BotonGoogle tamano="medium" compacto />
   }
 
   return (
