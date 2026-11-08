@@ -1,12 +1,13 @@
-import { APPS_SCRIPT_URL } from "@/lib/config";
-import { MaterialBrowser } from "@/components/material-browser";
-import { SetupNotice } from "@/components/setup-notice";
-import { SiteHeader } from "@/components/site-header";
-import { UploadForm } from "@/components/upload-form";
-import { SesionProvider } from "@/lib/sesion";
+import Link from 'next/link'
+import { APPS_SCRIPT_URL } from '@/lib/config'
+import { MaterialBrowser } from '@/components/material-browser'
+import { SetupNotice } from '@/components/setup-notice'
+import { SiteHeader } from '@/components/site-header'
+import { UploadForm } from '@/components/upload-form'
+import { SesionProvider } from '@/lib/sesion'
 
 export default function Page() {
-  const configurado = Boolean(APPS_SCRIPT_URL);
+  const configurado = Boolean(APPS_SCRIPT_URL)
 
   return (
     <SesionProvider>
@@ -25,12 +26,15 @@ export default function Page() {
       </main>
       <footer className="border-t border-border">
         <p className="mx-auto max-w-6xl px-4 py-6 text-xs leading-relaxed text-muted-foreground">
-          Proyecto independiente hecho por y para alumnos de Ingeniería de
-          Sonido. No es un sitio oficial de la Universidad Nacional de Tres de
-          Febrero. Archivos alojados en Google Drive. Usamos tu cuenta de Google
-          solo para saber quién descarga y quién sube; tu mail no se publica.
+          Proyecto independiente hecho por y para alumnos de Ingeniería de Sonido. No es un sitio
+          oficial de la Universidad Nacional de Tres de Febrero. Archivos alojados en Google Drive.
+          Usamos tu cuenta de Google solo para saber quién descarga y quién sube; tu mail no se
+          publica.{' '}
+          <Link href="/privacidad/" className="underline underline-offset-4 hover:text-foreground">
+            Política de privacidad
+          </Link>
         </p>
       </footer>
     </SesionProvider>
-  );
+  )
 }

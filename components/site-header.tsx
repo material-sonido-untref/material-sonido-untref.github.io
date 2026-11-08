@@ -1,6 +1,6 @@
-import { Upload } from "lucide-react";
-import { BarraSesion } from "@/components/barra-sesion";
-import { SpectrumAnalyzer } from "@/components/spectrum-analyzer";
+import { Upload } from 'lucide-react'
+import { BarraSesion } from '@/components/barra-sesion'
+import { SpectrumAnalyzer } from '@/components/spectrum-analyzer'
 
 export function SiteHeader() {
   return (
@@ -9,10 +9,7 @@ export function SiteHeader() {
         <p className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-widest">
           <span className="led" data-on="true" />
           <span>
-            UNTREF{" "}
-            <span className="text-muted-foreground">
-              / Ingeniería de Sonido
-            </span>
+            UNTREF <span className="text-muted-foreground">/ Ingeniería de Sonido</span>
           </span>
         </p>
         <div className="flex items-center gap-3">
@@ -36,13 +33,13 @@ export function SiteHeader() {
             Parciales, finales y apuntes de la carrera
           </h1>
           <p className="max-w-prose text-pretty leading-relaxed text-muted-foreground">
-            De Análisis de Señales a Acústica de Recintos: lo que circula entre
-            alumnos, ordenado por materia. Gratis: el listado es libre y para
-            descargar alcanza con iniciar sesión con Google.
+            De Análisis de Señales a Acústica de Recintos: lo que circula entre alumnos, ordenado
+            por materia. Gratis: el listado es libre y para descargar alcanza con iniciar sesión con
+            Google.
           </p>
         </div>
         <SpectrumAnalyzer />
       </div>
     </header>
-  );
+  )
 }
