@@ -3,14 +3,29 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
-import { Check, Inbox, Loader2, RotateCw, Search, ShieldCheck, Users, X } from 'lucide-react'
+import {
+  Check,
+  HardDrive,
+  Inbox,
+  Loader2,
+  RotateCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-react'
 import { BotonGoogle } from '@/components/boton-google'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
   adminCambiarRol,
   adminDatos,
+  adminEliminar,
   adminResolver,
+  formatearTamano,
+  useRepositorio,
+  type EspacioDrive,
   type PedidoPendiente,
   type Rol,
   type UsuarioAdmin,
@@ -109,6 +124,7 @@ function Contenido({ miEmail }: { miEmail: string }) {
   return (
     <div className="flex flex-col gap-8">
       <Pedidos pendientes={data.pendientes} recargar={() => mutate()} />
+      {data.espacio && <Espacio espacio={data.espacio} recargar={() => mutate()} />}
       <ListaUsuarios usuarios={data.usuarios} miEmail={miEmail} recargar={() => mutate()} />
     </div>
   )
@@ -234,6 +250,181 @@ function TarjetaPedido({ pedido, recargar }: { pedido: PedidoPendiente; recargar
           {error}
         </p>
       )}
+    </li>
+  )
+}
+
+function porcentaje(parte: number, total: number) {
+  return total > 0 ? Math.min(100, (parte / total) * 100) : 0
+}
+
+function Barra({ valor, alerta = false }: { valor: number; alerta?: boolean }) {
+  return (
+    <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
+      <div
+        className={cn('h-full rounded-full', alerta ? 'bg-destructive' : 'bg-primary')}
+        style={{ width: `${Math.max(valor, valor > 0 ? 1 : 0)}%` }}
+      />
+    </div>
+  )
+}
+
+function Espacio({ espacio, recargar }: { espacio: EspacioDrive; recargar: () => void }) {
+  const { usadoCuenta, limiteCuenta, usadoRepositorio, porMateria, masPesados } = espacio
+  const usoCuenta = limiteCuenta ? porcentaje(usadoCuenta, limiteCuenta) : null
+  const mayor = porMateria[0]?.bytes ?? 0
+
+  return (
+    <section aria-labelledby="espacio-title" className="flex flex-col gap-4">
+      <h2
+        id="espacio-title"
+        className="flex items-center gap-3 font-display text-3xl font-bold uppercase tracking-wide"
+      >
+        <HardDrive className="size-6 text-primary" aria-hidden="true" />
+        Espacio en Drive
+      </h2>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="tarjeta flex flex-col gap-4 p-5">
+          <div className="flex flex-col gap-2">
+            <p className="flex items-baseline justify-between gap-3">
+              <span className="font-medium">Cuenta de Google del proyecto</span>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {formatearTamano(usadoCuenta)}
+                {limiteCuenta && ` de ${formatearTamano(limiteCuenta)}`}
+              </span>
+            </p>
+            {usoCuenta !== null && (
+              <>
+                <Barra valor={usoCuenta} alerta={usoCuenta >= 85} />
+                <p
+                  className={cn(
+                    'text-sm tabular-nums',
+                    usoCuenta >= 85 ? 'text-destructive' : 'text-muted-foreground',
+                  )}
+                >
+                  {usoCuenta.toFixed(1)} % usado
+                  {usoCuenta >= 85 && ' — conviene liberar espacio'}
+                </p>
+              </>
+            )}
+          </div>
+          <div className="flex flex-col gap-2 border-t border-border pt-4">
+            <p className="flex items-baseline justify-between gap-3">
+              <span className="font-medium">Material del repositorio</span>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {formatearTamano(usadoRepositorio)}
+              </span>
+            </p>
+            {limiteCuenta && <Barra valor={porcentaje(usadoRepositorio, limiteCuenta)} />}
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              El espacio de la cuenta lo comparten Drive, Gmail y Fotos. Lo eliminado sigue
+              ocupando lugar hasta que se vacía la papelera de Drive (o pasan 30 días).
+            </p>
+          </div>
+        </div>
+
+        <div className="tarjeta flex flex-col gap-3 p-5">
+          <p className="font-medium">Por materia</p>
+          {porMateria.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Todavía no hay materias.</p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {porMateria.map((m) => (
+                <li key={m.nombre} className="flex flex-col gap-1.5">
+                  <p className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate">{m.nombre}</span>
+                    <span className="shrink-0 text-muted-foreground tabular-nums">
+                      {formatearTamano(m.bytes)} · {m.archivos}{' '}
+                      {m.archivos === 1 ? 'archivo' : 'archivos'}
+                    </span>
+                  </p>
+                  <Barra valor={porcentaje(m.bytes, mayor)} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="tarjeta flex flex-col overflow-hidden">
+        <p className="border-b border-border px-5 py-4 font-medium">Archivos más pesados</p>
+        {masPesados.length === 0 ? (
+          <p className="p-5 text-sm text-muted-foreground">Todavía no hay archivos.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {masPesados.map((a) => (
+              <ArchivoPesado key={a.clave} archivo={a} recargar={recargar} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function ArchivoPesado({
+  archivo,
+  recargar,
+}: {
+  archivo: EspacioDrive['masPesados'][number]
+  recargar: () => void
+}) {
+  const { obtenerToken } = useSesion()
+  const { mutate: recargarListado } = useRepositorio()
+  const [eliminando, setEliminando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function eliminar() {
+    if (
+      !window.confirm(
+        `¿Eliminar "${archivo.nombre}"?\n\nVa a la papelera de Drive: se puede recuperar desde ahí durante 30 días.`,
+      )
+    ) {
+      return
+    }
+    setError(null)
+    setEliminando(true)
+    try {
+      await adminEliminar(obtenerToken(), archivo.clave)
+      recargar()
+      recargarListado()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar el archivo.')
+      setEliminando(false)
+    }
+  }
+
+  return (
+    <li className="flex items-center gap-3 px-5 py-3">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-medium">{archivo.nombre}</span>
+        <span className="truncate text-xs text-muted-foreground">
+          {archivo.materia} · subido el {fecha(archivo.fecha)}
+        </span>
+        {error && (
+          <span role="alert" className="text-xs text-destructive">
+            {error}
+          </span>
+        )}
+      </div>
+      <span className="shrink-0 text-sm font-medium tabular-nums">
+        {formatearTamano(archivo.tamano)}
+      </span>
+      <button
+        type="button"
+        onClick={eliminar}
+        disabled={eliminando}
+        aria-label={`Eliminar ${archivo.nombre}`}
+        title="Eliminar archivo"
+        className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-destructive/60 hover:text-destructive focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-wait"
+      >
+        {eliminando ? (
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <Trash2 className="size-4" aria-hidden="true" />
+        )}
+      </button>
     </li>
   )
 }

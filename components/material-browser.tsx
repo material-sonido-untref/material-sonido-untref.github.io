@@ -13,6 +13,7 @@ import {
   RotateCw,
   Search,
   ThumbsUp,
+  Trash2,
 } from 'lucide-react'
 import { BotonGoogle } from '@/components/boton-google'
 import { SelectorMateria, TODAS } from '@/components/selector-materia'
@@ -21,6 +22,7 @@ import {
   formatearTamano,
   pedirEnlace,
   puedeDescargar,
+  adminEliminar,
   TIPOS,
   useRepositorio,
   votarArchivo,
@@ -352,10 +354,31 @@ function AvisoDescarga() {
 }
 
 function FilaMaterial({ archivo, descargable }: { archivo: FilaArchivo; descargable: boolean }) {
-  const { obtenerToken, misVotos, misArchivos, marcarVoto } = useSesion()
+  const { obtenerToken, misVotos, misArchivos, marcarVoto, usuario } = useSesion()
   const { mutate } = useRepositorio()
   const [abriendo, setAbriendo] = useState(false)
   const [votando, setVotando] = useState(false)
+  const [eliminando, setEliminando] = useState(false)
+  const esAdmin = usuario?.rol === 'admin'
+
+  async function eliminar() {
+    if (
+      !window.confirm(
+        `¿Eliminar "${archivo.nombre}"?\n\nVa a la papelera de Drive: se puede recuperar desde ahí durante 30 días.`,
+      )
+    ) {
+      return
+    }
+    setError(null)
+    setEliminando(true)
+    try {
+      await adminEliminar(obtenerToken(), archivo.clave)
+      await mutate()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar el archivo.')
+      setEliminando(false)
+    }
+  }
   const [error, setError] = useState<string | null>(null)
   const esImagen = archivo.mimeType.startsWith('image/')
   const Icono = esImagen ? ImageIcon : FileText
@@ -539,6 +562,22 @@ function FilaMaterial({ archivo, descargable }: { archivo: FilaArchivo; descarga
         <span className="sr-only">(abre en Google Drive)</span>
       </button>
       {voto}
+      {esAdmin && (
+        <button
+          type="button"
+          onClick={eliminar}
+          disabled={eliminando}
+          title="Eliminar archivo"
+          aria-label={`Eliminar ${archivo.nombre}`}
+          className="flex size-9 shrink-0 items-center justify-center self-center rounded-md border border-border text-muted-foreground transition-colors hover:border-destructive/60 hover:text-destructive focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-wait"
+        >
+          {eliminando ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Trash2 className="size-4" aria-hidden="true" />
+          )}
+        </button>
+      )}
     </li>
   )
 }

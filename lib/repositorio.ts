@@ -159,12 +159,28 @@ export async function iniciarSesion(token: string) {
   }
 }
 
+export interface EspacioDrive {
+  /** Lo que usa toda la cuenta de Google del proyecto (Drive, Gmail y Fotos). */
+  usadoCuenta: number
+  /** null si la cuenta no tiene límite. */
+  limiteCuenta: number | null
+  usadoRepositorio: number
+  porMateria: { nombre: string; bytes: number; archivos: number }[]
+  masPesados: { clave: string; nombre: string; materia: string; tamano: number; fecha: string }[]
+}
+
 export async function adminDatos(token: string) {
-  const { usuarios, pendientes } = await enviar<{
+  const { usuarios, pendientes, espacio } = await enviar<{
     usuarios: UsuarioAdmin[]
     pendientes: PedidoPendiente[]
+    espacio?: EspacioDrive
   }>({ accion: 'admin_datos', token })
-  return { usuarios, pendientes }
+  return { usuarios, pendientes, espacio: espacio ?? null }
+}
+
+/** Manda el archivo a la papelera de Drive (se puede recuperar desde ahí durante 30 días). */
+export async function adminEliminar(token: string, clave: string) {
+  await enviar<Record<string, never>>({ accion: 'admin_eliminar', token, clave })
 }
 
 export async function adminCambiarRol(token: string, email: string, rol: Rol) {
@@ -216,6 +232,8 @@ export async function subirMaterial({ archivo, ...campos }: DatosSubida) {
 }
 
 export function formatearTamano(bytes: number) {
+  if (bytes <= 0) return '0 KB'
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
