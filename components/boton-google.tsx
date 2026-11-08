@@ -31,5 +31,13 @@ export function BotonGoogle({ texto = 'signin_with', tamano = 'large' }: Props) 
       <p className="text-sm text-muted-foreground">El inicio de sesión todavía no está configurado.</p>
     )
   }
-  return <div ref={ref} className={tamano === 'large' ? 'min-h-10' : 'min-h-8'} />
+  // Google dibuja el botón en un iframe de esquema claro; si el contenedor hereda
+  // el esquema oscuro de la página, el navegador le pinta un fondo blanco detrás.
+  return (
+    <div
+      ref={ref}
+      style={{ colorScheme: 'light' }}
+      className={tamano === 'large' ? 'min-h-10' : 'min-h-8'}
+    />
+  )
 }
