@@ -14,10 +14,10 @@ export const TIPOS = [
 
 export type TipoMaterial = (typeof TIPOS)[number]['value']
 
+/** Lo que ve cualquiera en el listado: el enlace se pide aparte, con sesión. */
 export interface Archivo {
-  id: string
+  clave: string
   nombre: string
-  url: string
   mimeType: string
   tamano: number
   fecha: string
@@ -30,11 +30,29 @@ export interface Materia {
   archivos: Archivo[]
 }
 
+export type Rol = 'lector' | 'colaborador' | 'admin' | 'bloqueado'
+
+export interface Usuario {
+  email: string
+  nombre: string
+  rol: Rol
+}
+
+export function puedeDescargar(rol: Rol) {
+  return rol === 'lector' || rol === 'colaborador' || rol === 'admin'
+}
+
+export function puedeSubir(rol: Rol) {
+  return rol === 'colaborador' || rol === 'admin'
+}
+
 type Respuesta<T> = ({ ok: true } & T) | { ok: false; error: string }
+
+const ERROR_CONEXION = 'No se pudo conectar con el repositorio.'
 
 async function fetchMaterias(url: string): Promise<Materia[]> {
   const res = await fetch(url)
-  if (!res.ok) throw new Error('No se pudo conectar con el repositorio.')
+  if (!res.ok) throw new Error(ERROR_CONEXION)
   const data = (await res.json()) as Respuesta<{ materias: Materia[] }>
   if (!data.ok) throw new Error(data.error)
   return data.materias
@@ -58,7 +76,36 @@ function leerComoBase64(file: File): Promise<string> {
   })
 }
 
+async function enviar<T>(cuerpo: Record<string, unknown>): Promise<T> {
+  let res: Response
+  try {
+    // text/plain evita el preflight CORS, que Apps Script no responde.
+    res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(cuerpo),
+    })
+  } catch {
+    throw new Error(ERROR_CONEXION)
+  }
+  if (!res.ok) throw new Error(ERROR_CONEXION)
+  const json = (await res.json()) as Respuesta<T>
+  if (!json.ok) throw new Error(json.error)
+  return json
+}
+
+export async function iniciarSesion(token: string) {
+  const { usuario } = await enviar<{ usuario: Usuario }>({ accion: 'sesion', token })
+  return usuario
+}
+
+export async function pedirEnlace(token: string, clave: string) {
+  const { url } = await enviar<{ url: string }>({ accion: 'enlace', token, clave })
+  return url
+}
+
 export interface DatosSubida {
+  token: string
   materia: string
   tipo: TipoMaterial
   anio: number
@@ -68,21 +115,14 @@ export interface DatosSubida {
 
 export async function subirMaterial({ archivo, ...campos }: DatosSubida) {
   const data = await leerComoBase64(archivo)
-  // text/plain evita el preflight CORS, que Apps Script no responde.
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({
-      ...campos,
-      nombre: archivo.name,
-      mimeType: archivo.type,
-      data,
-    }),
+  const { archivo: subido } = await enviar<{ archivo: { id: string; nombre: string; url: string } }>({
+    accion: 'subir',
+    ...campos,
+    nombre: archivo.name,
+    mimeType: archivo.type,
+    data,
   })
-  if (!res.ok) throw new Error('No se pudo conectar con el repositorio.')
-  const json = (await res.json()) as Respuesta<{ archivo: Pick<Archivo, 'id' | 'nombre' | 'url'> }>
-  if (!json.ok) throw new Error(json.error)
-  return json.archivo
+  return subido
 }
 
 export function formatearTamano(bytes: number) {

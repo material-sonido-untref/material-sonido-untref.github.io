@@ -1,9 +1,19 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ExternalLink, FileText, ImageIcon, RotateCw, Search } from 'lucide-react'
+import { ExternalLink, FileText, ImageIcon, Loader2, Lock, RotateCw, Search } from 'lucide-react'
+import { BotonGoogle } from '@/components/boton-google'
 import { cn } from '@/lib/utils'
-import { formatearTamano, TIPOS, useMaterias, type Archivo, type TipoMaterial } from '@/lib/repositorio'
+import {
+  formatearTamano,
+  pedirEnlace,
+  puedeDescargar,
+  TIPOS,
+  useMaterias,
+  type Archivo,
+  type TipoMaterial,
+} from '@/lib/repositorio'
+import { useSesion } from '@/lib/sesion'
 
 const TODAS = '__todas__'
 
@@ -11,6 +21,8 @@ type FilaArchivo = Archivo & { materia: string }
 
 export function MaterialBrowser() {
   const { data: materias, error, isLoading, mutate } = useMaterias()
+  const sesion = useSesion()
+  const descargable = sesion.estado === 'conectado' && !!sesion.usuario && puedeDescargar(sesion.usuario.rol)
   const [materiaActiva, setMateriaActiva] = useState(TODAS)
   const [tipo, setTipo] = useState<TipoMaterial | 'todos'>('todos')
   const [busqueda, setBusqueda] = useState('')
@@ -124,6 +136,8 @@ export function MaterialBrowser() {
           </fieldset>
         </div>
 
+        <AvisoDescarga />
+
         <div aria-live="polite" aria-busy={isLoading}>
           {isLoading ? (
             <ListaCargando />
@@ -148,7 +162,7 @@ export function MaterialBrowser() {
           ) : (
             <ul className="divide-y divide-border">
               {filas.map((a) => (
-                <FilaMaterial key={a.id} archivo={a} />
+                <FilaMaterial key={a.clave} archivo={a} descargable={descargable} />
               ))}
             </ul>
           )}
@@ -158,47 +172,127 @@ export function MaterialBrowser() {
   )
 }
 
-function FilaMaterial({ archivo }: { archivo: FilaArchivo }) {
+function AvisoDescarga() {
+  const { estado, usuario, error } = useSesion()
+  if (estado === 'cargando') return null
+  if (estado === 'conectado' && usuario) {
+    if (puedeDescargar(usuario.rol)) return null
+    return (
+      <p className="border-b border-border px-4 py-3 text-sm text-destructive">
+        Tu cuenta no tiene acceso a las descargas. Si creés que es un error, escribile a un admin.
+      </p>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-3 border-b border-border bg-muted/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-1">
+        <p className="flex items-center gap-2 text-sm font-medium">
+          <Lock className="size-4 text-muted-foreground" aria-hidden="true" />
+          Iniciá sesión con Google para descargar
+        </p>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          El listado se ve libre. Para abrir los archivos usá tu cuenta de Google.
+        </p>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </div>
+      <BotonGoogle />
+    </div>
+  )
+}
+
+function FilaMaterial({ archivo, descargable }: { archivo: FilaArchivo; descargable: boolean }) {
+  const { obtenerToken } = useSesion()
+  const [abriendo, setAbriendo] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const esImagen = archivo.mimeType.startsWith('image/')
   const Icono = esImagen ? ImageIcon : FileText
   const etiquetaTipo = TIPOS.find((t) => t.value === archivo.tipo)?.label ?? 'Otro'
 
+  async function abrir() {
+    setError(null)
+    let token: string
+    try {
+      token = obtenerToken()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Iniciá sesión para descargar.')
+      return
+    }
+    // La pestaña se abre ya, dentro del clic: si se abre después de esperar al servidor, el navegador la bloquea.
+    const pestana = window.open('', '_blank')
+    setAbriendo(true)
+    try {
+      const url = await pedirEnlace(token, archivo.clave)
+      if (pestana) {
+        pestana.opener = null
+        pestana.location.href = url
+      } else {
+        window.location.href = url
+      }
+    } catch (err) {
+      pestana?.close()
+      setError(err instanceof Error ? err.message : 'No se pudo abrir el archivo.')
+    } finally {
+      setAbriendo(false)
+    }
+  }
+
+  const contenido = (
+    <>
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+        <Icono className="size-5" aria-hidden="true" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="truncate font-medium">{archivo.nombre}</span>
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span>{archivo.materia}</span>
+          <span aria-hidden="true">·</span>
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 font-display font-semibold uppercase tracking-wide',
+              archivo.tipo === 'examen' && 'text-primary',
+            )}
+          >
+            {archivo.tipo === 'examen' && <span className="led size-1.5" data-on="true" />}
+            {etiquetaTipo}
+          </span>
+          {archivo.anio && <span className="tabular-nums">{archivo.anio}</span>}
+          <span aria-hidden="true">·</span>
+          <span className="tabular-nums">{formatearTamano(archivo.tamano)}</span>
+        </span>
+        {error && <span className="text-xs text-destructive">{error}</span>}
+      </span>
+    </>
+  )
+
+  if (!descargable) {
+    return (
+      <li className="flex items-center gap-4 px-4 py-3">
+        {contenido}
+        <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className="sr-only">(iniciá sesión para descargar)</span>
+      </li>
+    )
+  }
+
   return (
     <li>
-      <a
-        href={archivo.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none"
+      <button
+        type="button"
+        onClick={abrir}
+        disabled={abriendo}
+        className="group flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none disabled:cursor-wait"
       >
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Icono className="size-5" aria-hidden="true" />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="truncate font-medium">{archivo.nombre}</span>
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span>{archivo.materia}</span>
-            <span aria-hidden="true">·</span>
-            <span
-              className={cn(
-                'inline-flex items-center gap-1.5 font-display font-semibold uppercase tracking-wide',
-                archivo.tipo === 'examen' && 'text-primary',
-              )}
-            >
-              {archivo.tipo === 'examen' && <span className="led size-1.5" data-on="true" />}
-              {etiquetaTipo}
-            </span>
-            {archivo.anio && <span className="tabular-nums">{archivo.anio}</span>}
-            <span aria-hidden="true">·</span>
-            <span className="tabular-nums">{formatearTamano(archivo.tamano)}</span>
-          </span>
-        </span>
-        <ExternalLink
-          className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary"
-          aria-hidden="true"
-        />
+        {contenido}
+        {abriendo ? (
+          <Loader2 className="size-4 shrink-0 animate-spin text-primary" aria-hidden="true" />
+        ) : (
+          <ExternalLink
+            className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary"
+            aria-hidden="true"
+          />
+        )}
         <span className="sr-only">(abre en Google Drive)</span>
-      </a>
+      </button>
     </li>
   )
 }

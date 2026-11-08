@@ -1,18 +1,21 @@
 'use client'
 
 import { useId, useRef, useState } from 'react'
-import { AlertCircle, CheckCircle2, Circle, FileUp, Loader2, X } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Circle, FileUp, Loader2, Lock, X } from 'lucide-react'
+import { BotonGoogle } from '@/components/boton-google'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
   formatearTamano,
   MAX_BYTES,
   MIME_PERMITIDOS,
+  puedeSubir,
   subirMaterial,
   TIPOS,
   useMaterias,
   type TipoMaterial,
 } from '@/lib/repositorio'
+import { useSesion } from '@/lib/sesion'
 
 const ANIO_ACTUAL = new Date().getFullYear()
 const ANIOS = Array.from({ length: ANIO_ACTUAL - 1999 }, (_, i) => ANIO_ACTUAL - i)
@@ -53,6 +56,70 @@ const campoClase =
   'h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
 export function UploadForm() {
+  const { estado, usuario } = useSesion()
+
+  if (estado === 'conectado' && usuario && puedeSubir(usuario.rol)) return <FormularioSubida />
+
+  return (
+    <MarcoSubida activo={false}>
+      {estado === 'cargando' ? (
+        <p className="text-sm text-muted-foreground">Verificando tu sesión…</p>
+      ) : estado === 'anonimo' || !usuario ? (
+        <div className="flex flex-col items-start gap-3">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <Lock className="size-4 text-muted-foreground" aria-hidden="true" />
+            Iniciá sesión para subir material
+          </p>
+          <BotonGoogle />
+        </div>
+      ) : usuario.rol === 'bloqueado' ? (
+        <p className="text-sm text-destructive">Tu cuenta no tiene permiso para subir material.</p>
+      ) : (
+        <div className="flex flex-col gap-2 text-sm leading-relaxed">
+          <p className="font-medium">Para subir necesitás ser colaborador.</p>
+          <p className="text-muted-foreground">
+            Pedile a un admin que te habilite y pasale tu mail:{' '}
+            <span className="font-medium text-foreground">{usuario.email}</span>
+          </p>
+        </div>
+      )}
+    </MarcoSubida>
+  )
+}
+
+function MarcoSubida({ activo, children }: { activo: boolean; children: React.ReactNode }) {
+  return (
+    <section
+      id="subir"
+      aria-labelledby="subir-title"
+      className="flex scroll-mt-6 flex-col gap-5 rounded-xl border border-border bg-card p-5"
+    >
+      <div className="flex flex-col gap-1">
+        <h2
+          id="subir-title"
+          className="flex items-center gap-2 font-display text-xl font-bold uppercase tracking-wide"
+        >
+          <span className="led" data-on={activo} />
+          Subir material
+        </h2>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          PDF, JPG o PNG de hasta 20 MB cada uno, hasta {MAX_ARCHIVOS_POR_TANDA} por vez. Se guardan en
+          el Drive del proyecto.
+        </p>
+      </div>
+
+      {children}
+
+      <p className="border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
+        Las subidas quedan registradas con tu mail y los administradores eliminan lo que no
+        corresponda. No subas material con datos personales.
+      </p>
+    </section>
+  )
+}
+
+function FormularioSubida() {
+  const { obtenerToken } = useSesion()
   const { data: materias, mutate } = useMaterias()
   const [items, setItems] = useState<Item[]>([])
   const [tipo, setTipo] = useState<TipoMaterial>('examen')
@@ -138,7 +205,9 @@ export function UploadForm() {
     for (const it of aSubir) {
       actualizarItem(it.clave, { tipo: 'subiendo' })
       try {
-        const subido = await subirMaterial({ materia, tipo, anio, archivo: it.archivo, website })
+        // Se pide en cada archivo: en una tanda larga el token puede vencer en el medio.
+        const token = obtenerToken()
+        const subido = await subirMaterial({ token, materia, tipo, anio, archivo: it.archivo, website })
         actualizarItem(it.clave, { tipo: 'ok', url: subido.url })
         subidos++
       } catch (err) {
@@ -157,25 +226,7 @@ export function UploadForm() {
   const subidosOk = items.filter((it) => it.estado.tipo === 'ok').length
 
   return (
-    <section
-      id="subir"
-      aria-labelledby="subir-title"
-      className="flex scroll-mt-6 flex-col gap-5 rounded-xl border border-border bg-card p-5"
-    >
-      <div className="flex flex-col gap-1">
-        <h2
-          id="subir-title"
-          className="flex items-center gap-2 font-display text-xl font-bold uppercase tracking-wide"
-        >
-          <span className="led" data-on={subiendo} />
-          Subir material
-        </h2>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          PDF, JPG o PNG de hasta 20 MB cada uno, hasta {MAX_ARCHIVOS_POR_TANDA} por vez. Se guardan en
-          el Drive del proyecto.
-        </p>
-      </div>
-
+    <MarcoSubida activo={subiendo}>
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         <div className="flex flex-col gap-1.5">
           <label htmlFor={ids.materia} className="text-sm font-medium">
@@ -377,12 +428,7 @@ export function UploadForm() {
           )}
         </div>
       </form>
-
-      <p className="border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
-        Las subidas quedan registradas y los administradores eliminan lo que no corresponda. No
-        subas material con datos personales.
-      </p>
-    </section>
+    </MarcoSubida>
   )
 }
 

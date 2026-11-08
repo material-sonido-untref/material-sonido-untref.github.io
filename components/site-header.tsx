@@ -1,23 +1,30 @@
-import { Upload } from 'lucide-react'
-import { SpectrumAnalyzer } from '@/components/spectrum-analyzer'
+import { Upload } from "lucide-react";
+import { BarraSesion } from "@/components/barra-sesion";
+import { SpectrumAnalyzer } from "@/components/spectrum-analyzer";
 
 export function SiteHeader() {
   return (
     <header className="border-b border-border">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-4">
         <p className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-widest">
           <span className="led" data-on="true" />
           <span>
-            UNTREF <span className="text-muted-foreground">/ Ingeniería de Sonido</span>
+            UNTREF{" "}
+            <span className="text-muted-foreground">
+              / Ingeniería de Sonido
+            </span>
           </span>
         </p>
-        <a
-          href="#subir"
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 font-display text-sm font-semibold uppercase tracking-wider text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <Upload className="size-4" aria-hidden="true" />
-          Subir
-        </a>
+        <div className="flex items-center gap-3">
+          <BarraSesion />
+          <a
+            href="#subir"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 font-display text-sm font-semibold uppercase tracking-wider text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <Upload className="size-4" aria-hidden="true" />
+            Subir
+          </a>
+        </div>
       </div>
 
       <div className="mx-auto grid max-w-6xl items-end gap-8 px-4 pt-6 pb-10 md:grid-cols-2 md:pt-10 md:pb-14">
@@ -29,12 +36,13 @@ export function SiteHeader() {
             Parciales, finales y apuntes de la carrera
           </h1>
           <p className="max-w-prose text-pretty leading-relaxed text-muted-foreground">
-            De Análisis de Señales a Acústica de Recintos: lo que circula entre alumnos, ordenado por
-            materia. Gratis, sin cuentas y abierto a que subas lo tuyo.
+            De Análisis de Señales a Acústica de Recintos: lo que circula entre
+            alumnos, ordenado por materia. Gratis: el listado es libre y para
+            descargar alcanza con iniciar sesión con Google.
           </p>
         </div>
         <SpectrumAnalyzer />
       </div>
     </header>
-  )
+  );
 }

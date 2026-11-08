@@ -18,7 +18,7 @@ const barlowCondensed = Barlow_Condensed({
 export const metadata: Metadata = {
   title: 'Material de Ingeniería de Sonido · UNTREF',
   description:
-    'Exámenes, apuntes y resúmenes de Ingeniería de Sonido (UNTREF), subidos por alumnos y ordenados por materia. Gratis y sin cuentas.',
+    'Exámenes, apuntes y resúmenes de Ingeniería de Sonido (UNTREF), subidos por alumnos y ordenados por materia. Gratis, con inicio de sesión de Google.',
   generator: 'v0.app',
   icons: {
     icon: [
