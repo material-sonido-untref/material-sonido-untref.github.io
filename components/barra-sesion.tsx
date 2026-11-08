@@ -1,6 +1,7 @@
 'use client'
 
-import { LogOut } from 'lucide-react'
+import Link from 'next/link'
+import { LogOut, ShieldCheck } from 'lucide-react'
 import { BotonGoogle } from '@/components/boton-google'
 import { useSesion } from '@/lib/sesion'
 import type { Rol } from '@/lib/repositorio'
@@ -33,6 +34,16 @@ export function BarraSesion() {
           {ETIQUETA_ROL[usuario.rol]}
         </span>
       </div>
+      {usuario.rol === 'admin' && (
+        <Link
+          href="/admin/"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-3"
+        >
+          <ShieldCheck className="size-4" aria-hidden="true" />
+          <span className="sr-only sm:not-sr-only">Panel</span>
+          <span className="sr-only"> de admin</span>
+        </Link>
+      )}
       <button
         type="button"
         onClick={cerrarSesion}

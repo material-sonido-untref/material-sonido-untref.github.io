@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { APPS_SCRIPT_URL } from '@/lib/config'
 import { MaterialBrowser } from '@/components/material-browser'
+import { PedidoAdmin } from '@/components/pedido-colaborador'
 import { RankingAportantes } from '@/components/ranking-aportantes'
 import { SetupNotice } from '@/components/setup-notice'
 import { SiteHeader } from '@/components/site-header'
@@ -23,6 +24,7 @@ export default function Page() {
             </div>
             <div className="flex min-w-0 flex-col gap-6">
               <UploadForm />
+              <PedidoAdmin />
               <RankingAportantes />
             </div>
           </div>

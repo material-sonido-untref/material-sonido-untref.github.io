@@ -54,10 +54,32 @@ export interface Usuario {
   rol: Rol
 }
 
-/** Pedido para ser colaborador; solo llega si está pendiente o fue rechazado. */
+/** Rol al que se puede aspirar: el lector pide ser colaborador; el colaborador, admin. */
+export type RolPedido = 'colaborador' | 'admin'
+
+/** Último pedido de cambio de rol; solo llega si está pendiente o fue rechazado. */
 export interface Solicitud {
   estado: 'pendiente' | 'rechazada'
   fecha: string
+  pide: RolPedido
+}
+
+export interface UsuarioAdmin {
+  email: string
+  nombre: string
+  rol: Rol
+  alta: string | null
+  ultimoIngreso: string | null
+}
+
+export interface PedidoPendiente {
+  email: string
+  nombre: string
+  curso: string
+  motivo: string
+  fecha: string
+  pide: RolPedido
+  rolActual: Rol
 }
 
 export function puedeDescargar(rol: Rol) {
@@ -135,6 +157,22 @@ export async function iniciarSesion(token: string) {
     misVotos: datos.misVotos ?? [],
     misArchivos: datos.misArchivos ?? [],
   }
+}
+
+export async function adminDatos(token: string) {
+  const { usuarios, pendientes } = await enviar<{
+    usuarios: UsuarioAdmin[]
+    pendientes: PedidoPendiente[]
+  }>({ accion: 'admin_datos', token })
+  return { usuarios, pendientes }
+}
+
+export async function adminCambiarRol(token: string, email: string, rol: Rol) {
+  await enviar<{ usuario: { email: string; rol: Rol } }>({ accion: 'admin_rol', token, email, rol })
+}
+
+export async function adminResolver(token: string, email: string, decision: 'aprobar' | 'rechazar') {
+  await enviar<Record<string, never>>({ accion: 'admin_resolver', token, email, decision })
 }
 
 export async function votarArchivo(token: string, clave: string, voto: boolean) {

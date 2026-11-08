@@ -1,9 +1,9 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { Clock, Loader2, Send } from 'lucide-react'
+import { Clock, Loader2, Send, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { solicitarColaborador } from '@/lib/repositorio'
+import { solicitarColaborador, type RolPedido } from '@/lib/repositorio'
 import { useSesion } from '@/lib/sesion'
 
 const MAX_CURSO = 80
@@ -20,10 +20,46 @@ function fechaLegible(iso: string) {
   return Number.isNaN(fecha.getTime()) ? '' : formatoFecha.format(fecha)
 }
 
-/** Lo que ve un lector en lugar del formulario de subida. */
-export function PedidoColaborador() {
-  const { solicitud } = useSesion()
+const TEXTOS: Record<
+  RolPedido,
+  {
+    titulo: string
+    ayuda: string
+    preguntaMotivo: string
+    ejemploMotivo: string
+    faltaMotivo: string
+    alAprobar: string
+    paraReintentar: string
+  }
+> = {
+  colaborador: {
+    titulo: 'Quiero subir material',
+    ayuda: 'Para subir hay que ser colaborador. Contanos quién sos y les llega un aviso a los admins.',
+    preguntaMotivo: '¿Qué material querés subir?',
+    ejemploMotivo: 'Ej.: tengo los parciales 2024 de Análisis de Señales y apuntes de Acústica.',
+    faltaMotivo: 'Contanos en una frase qué material querés subir.',
+    alAprobar: 'Cuando te habiliten te llega un mail y vas a ver acá el formulario para subir.',
+    paraReintentar: 'contando un poco más qué material tenés',
+  },
+  admin: {
+    titulo: 'Quiero ser admin',
+    ayuda:
+      'Los admins aprueban pedidos y administran a los usuarios. Contanos por qué querés sumarte y les llega un aviso.',
+    preguntaMotivo: '¿Por qué querés ser admin?',
+    ejemploMotivo: 'Ej.: quiero ayudar a revisar lo que se sube de 3.º año.',
+    faltaMotivo: 'Contanos en una frase por qué querés ser admin.',
+    alAprobar: 'Cuando te aprueben te llega un mail y vas a ver el panel de admin.',
+    paraReintentar: 'contando un poco más por qué querés sumarte',
+  },
+}
+
+/** Pedido para pasar al rol siguiente: muestra el estado del último o el formulario. */
+function PedidoDeRol({ pide }: { pide: RolPedido }) {
+  const { solicitud: ultima } = useSesion()
   const [reintentando, setReintentando] = useState(false)
+  // Los pedidos anteriores al rol "admin" llegan sin "pide": todos eran para colaborador.
+  const solicitud = ultima && (ultima.pide ?? 'colaborador') === pide ? ultima : null
+  const textos = TEXTOS[pide]
 
   if (solicitud?.estado === 'pendiente') {
     const fecha = fechaLegible(solicitud.fecha)
@@ -34,9 +70,7 @@ export function PedidoColaborador() {
           Tu pedido está pendiente
         </p>
         <p className="text-muted-foreground">
-          Lo enviaste{fecha && ` el ${fecha}`}. Los admins ya recibieron un mail y te pueden
-          responder a tu correo. Cuando te habiliten, vas a ver acá el formulario para subir
-          (recargá la página).
+          Lo enviaste{fecha && ` el ${fecha}`}. Los admins ya recibieron un aviso. {textos.alAprobar}
         </p>
       </div>
     )
@@ -47,7 +81,7 @@ export function PedidoColaborador() {
       <div className="flex flex-col items-start gap-3 text-sm leading-relaxed">
         <p className="font-medium">Tu pedido anterior no fue aprobado.</p>
         <p className="text-muted-foreground">
-          Si querés, podés volver a pedirlo contando un poco más qué material tenés.
+          Si querés, podés volver a pedirlo {textos.paraReintentar}.
         </p>
         <Button type="button" variant="outline" onClick={() => setReintentando(true)}>
           Volver a pedir
@@ -56,16 +90,55 @@ export function PedidoColaborador() {
     )
   }
 
-  return <FormularioPedido />
+  return <FormularioPedido pide={pide} />
 }
 
-function FormularioPedido() {
+/** Lo que ve un lector en lugar del formulario de subida. */
+export function PedidoColaborador() {
+  return <PedidoDeRol pide="colaborador" />
+}
+
+/** Tarjeta para que un colaborador pida ser admin; no se muestra a nadie más. */
+export function PedidoAdmin() {
+  const { estado, usuario, solicitud } = useSesion()
+  const [abierto, setAbierto] = useState(false)
+  if (estado !== 'conectado' || usuario?.rol !== 'colaborador') return null
+  const hayPedido = solicitud?.pide === 'admin'
+
+  return (
+    <section aria-labelledby="pedido-admin-title" className="tarjeta flex flex-col gap-4 p-5">
+      <h2
+        id="pedido-admin-title"
+        className="flex items-center gap-2 font-display text-xl font-bold uppercase tracking-wide"
+      >
+        <ShieldCheck className="size-5 text-primary" aria-hidden="true" />
+        ¿Querés ser admin?
+      </h2>
+      {abierto || hayPedido ? (
+        <PedidoDeRol pide="admin" />
+      ) : (
+        <div className="flex flex-col items-start gap-3 text-sm leading-relaxed">
+          <p className="text-muted-foreground">
+            Los admins aprueban pedidos y administran a los usuarios. Si querés sumarte, pedíselo a
+            los admins actuales.
+          </p>
+          <Button type="button" variant="outline" onClick={() => setAbierto(true)}>
+            Pedir ser admin
+          </Button>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function FormularioPedido({ pide }: { pide: RolPedido }) {
   const { obtenerToken, setSolicitud } = useSesion()
   const [curso, setCurso] = useState('')
   const [motivo, setMotivo] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const ids = { curso: useId(), motivo: useId(), ayuda: useId() }
+  const textos = TEXTOS[pide]
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -74,7 +147,7 @@ function FormularioPedido() {
       return
     }
     if (motivo.trim().length < MIN_MOTIVO) {
-      setError('Contanos en una frase qué material querés subir.')
+      setError(textos.faltaMotivo)
       return
     }
     setError(null)
@@ -91,9 +164,9 @@ function FormularioPedido() {
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
       <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium">Quiero subir material</p>
+        <p className="text-sm font-medium">{textos.titulo}</p>
         <p id={ids.ayuda} className="text-sm leading-relaxed text-muted-foreground">
-          Para subir hay que ser colaborador. Contanos quién sos y les llega un aviso a los admins.
+          {textos.ayuda}
         </p>
       </div>
 
@@ -116,7 +189,7 @@ function FormularioPedido() {
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor={ids.motivo} className="text-sm font-medium">
-          ¿Qué material querés subir?
+          {textos.preguntaMotivo}
         </label>
         <textarea
           id={ids.motivo}
@@ -127,7 +200,7 @@ function FormularioPedido() {
           }}
           maxLength={MAX_MOTIVO}
           rows={3}
-          placeholder="Ej.: tengo los parciales 2024 de Análisis de Señales y apuntes de Acústica."
+          placeholder={textos.ejemploMotivo}
           aria-describedby={ids.ayuda}
           className={`${campoClase} resize-y py-2 leading-relaxed`}
         />
