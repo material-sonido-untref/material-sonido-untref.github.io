@@ -137,7 +137,7 @@ function FormularioPedido() {
         type="submit"
         size="lg"
         disabled={enviando}
-        className="h-10 font-display text-base font-semibold uppercase tracking-wider"
+        className="h-11 rounded-full font-display text-base font-semibold uppercase tracking-wider"
       >
         {enviando ? (
           <>

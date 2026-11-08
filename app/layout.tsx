@@ -16,35 +16,22 @@ const barlowCondensed = Barlow_Condensed({
 })
 
 export const metadata: Metadata = {
-  title: 'Material de Ingeniería de Sonido · UNTREF',
+  title: 'Ingeniería de Sonido · De alumnos, para alumnos',
   description:
     'Exámenes, apuntes y resúmenes de Ingeniería de Sonido (UNTREF), subidos por alumnos y ordenados por materia. Gratis, con inicio de sesión de Google.',
   generator: 'v0.app',
   icons: {
     icon: [
-      {
-        url: `${basePath}/icon-light-32x32.png`,
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: `${basePath}/icon-dark-32x32.png`,
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: `${basePath}/icon.svg`,
-        type: 'image/svg+xml',
-      },
+      { url: `${basePath}/icon-32x32.png`, sizes: '32x32', type: 'image/png' },
+      { url: `${basePath}/icono-untref-512.png`, sizes: '512x512', type: 'image/png' },
     ],
     apple: `${basePath}/apple-icon.png`,
   },
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#e6e7e9' },
-    { media: '(prefers-color-scheme: dark)', color: '#1d1f22' },
-  ],
+  colorScheme: 'dark',
+  themeColor: '#0a1120',
 }
 
 export default function RootLayout({

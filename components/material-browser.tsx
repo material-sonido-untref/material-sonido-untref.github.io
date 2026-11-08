@@ -13,6 +13,7 @@ import {
   ThumbsUp,
 } from 'lucide-react'
 import { BotonGoogle } from '@/components/boton-google'
+import { SelectorMateria, TODAS } from '@/components/selector-materia'
 import { cn } from '@/lib/utils'
 import {
   formatearTamano,
@@ -25,8 +26,6 @@ import {
   type TipoMaterial,
 } from '@/lib/repositorio'
 import { useSesion } from '@/lib/sesion'
-
-const TODAS = '__todas__'
 
 type FilaArchivo = Archivo & { materia: string }
 
@@ -65,7 +64,7 @@ function Segmentado<T extends string>({
           className={cn(
             'cursor-pointer rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50',
             valor === o.value
-              ? 'bg-card font-medium text-foreground shadow-sm'
+              ? 'bg-accent font-medium text-accent-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground',
           )}
         >
@@ -93,6 +92,10 @@ export function MaterialBrowser() {
   const [tipo, setTipo] = useState<TipoMaterial | 'todos'>('todos')
   const [busqueda, setBusqueda] = useState('')
   const [orden, setOrden] = useState<Orden>('recientes')
+  const opcionesMateria = useMemo(
+    () => materias?.map((m) => ({ nombre: m.nombre, cantidad: m.archivos.length })),
+    [materias],
+  )
 
   const filas = useMemo<FilaArchivo[]>(() => {
     if (!materias) return []
@@ -116,52 +119,18 @@ export function MaterialBrowser() {
         Buscar material
       </h2>
 
-      <div className="mb-3 flex items-baseline justify-between gap-4">
-        <p className="font-display text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-          Canales · materias
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <p className="font-display text-3xl font-bold uppercase tracking-wide md:text-4xl">
+          Material
         </p>
-      </div>
-      <div
-        role="tablist"
-        aria-label="Materias"
-        className="-mb-px flex gap-1.5 overflow-x-auto pt-1"
-      >
-        {[TODAS, ...(materias?.map((m) => m.nombre) ?? [])].map((nombre) => {
-          const activa = materiaActiva === nombre
-          const cantidad =
-            nombre === TODAS
-              ? materias?.reduce((n, m) => n + m.archivos.length, 0)
-              : materias?.find((m) => m.nombre === nombre)?.archivos.length
-          return (
-            <button
-              key={nombre}
-              type="button"
-              role="tab"
-              aria-selected={activa}
-              onClick={() => setMateriaActiva(nombre)}
-              className={cn(
-                'flex shrink-0 flex-col items-center gap-2 rounded-t-md border border-b-0 px-3 pt-2.5 pb-2 transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                activa ? 'border-border bg-card' : 'border-transparent bg-muted/60 hover:bg-muted',
-              )}
-            >
-              <span className="led" data-on={activa} />
-              <span
-                className={cn(
-                  'cinta rounded-[2px] px-2 py-0.5 font-display text-sm font-semibold uppercase tracking-wide whitespace-nowrap transition-opacity',
-                  !activa && 'opacity-70',
-                )}
-              >
-                {nombre === TODAS ? 'Todas' : nombre}
-              </span>
-              <span className="font-display text-xs text-muted-foreground tabular-nums">
-                {cantidad ?? '–'}
-              </span>
-            </button>
-          )
-        })}
+        <SelectorMateria
+          materias={opcionesMateria}
+          valor={materiaActiva}
+          onCambio={setMateriaActiva}
+        />
       </div>
 
-      <div className="flex flex-col rounded-b-xl rounded-tr-xl border border-border bg-card">
+      <div className="tarjeta flex flex-col overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-border p-4">
           <label className="relative flex-1">
             <span className="sr-only">Buscar por nombre o materia</span>
@@ -336,11 +305,16 @@ function FilaMaterial({ archivo, descargable }: { archivo: FilaArchivo; descarga
 
   const contenido = (
     <>
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+      <span
+        className={cn(
+          'flex size-10 shrink-0 items-center justify-center rounded-lg',
+          archivo.tipo === 'examen' ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground',
+        )}
+      >
         <Icono className="size-5" aria-hidden="true" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="truncate font-medium">{archivo.nombre}</span>
+        <span className="line-clamp-2 font-medium break-words sm:line-clamp-1">{archivo.nombre}</span>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>{archivo.materia}</span>
           <span aria-hidden="true">·</span>

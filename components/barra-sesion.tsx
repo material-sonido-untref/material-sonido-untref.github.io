@@ -24,22 +24,22 @@ export function BarraSesion() {
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    <div className="flex min-w-0 items-center gap-2 sm:gap-3">
       <div className="flex min-w-0 flex-col items-end text-right leading-tight">
-        <span className="max-w-[12rem] truncate text-sm font-medium" title={usuario.email}>
+        <span className="max-w-[9rem] truncate text-sm font-medium sm:max-w-[12rem]" title={usuario.email}>
           {usuario.nombre || usuario.email}
         </span>
-        <span className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="font-display text-xs font-semibold uppercase tracking-wider text-primary">
           {ETIQUETA_ROL[usuario.rol]}
         </span>
       </div>
       <button
         type="button"
         onClick={cerrarSesion}
-        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground sm:px-3"
       >
         <LogOut className="size-4" aria-hidden="true" />
-        Salir
+        <span className="sr-only sm:not-sr-only">Salir</span>
       </button>
     </div>
   )

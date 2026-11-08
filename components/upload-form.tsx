@@ -87,12 +87,12 @@ function MarcoSubida({ activo, children }: { activo: boolean; children: React.Re
     <section
       id="subir"
       aria-labelledby="subir-title"
-      className="flex scroll-mt-6 flex-col gap-5 rounded-xl border border-border bg-card p-5"
+      className="tarjeta flex scroll-mt-24 flex-col gap-5 p-5"
     >
       <div className="flex flex-col gap-1">
         <h2
           id="subir-title"
-          className="flex items-center gap-2 font-display text-xl font-bold uppercase tracking-wide"
+          className="flex items-center gap-2 font-display text-2xl font-bold uppercase tracking-wide"
         >
           <span className="led" data-on={activo} />
           Subir material
@@ -318,7 +318,9 @@ function FormularioSubida() {
             }}
             className={cn(
               'relative flex flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50',
-              arrastrando ? 'border-primary bg-primary/5' : 'border-border',
+              arrastrando
+                ? 'border-primary bg-primary/10'
+                : 'border-primary/30 bg-background/40 hover:border-primary/60',
             )}
           >
             <FileUp className="size-6 text-muted-foreground" aria-hidden="true" />
@@ -393,7 +395,7 @@ function FormularioSubida() {
           type="submit"
           size="lg"
           disabled={subiendo || !materias?.length || pendientes === 0}
-          className="h-10 font-display text-base font-semibold uppercase tracking-wider"
+          className="h-11 rounded-full font-display text-base font-semibold uppercase tracking-wider"
         >
           {subiendo ? (
             <>

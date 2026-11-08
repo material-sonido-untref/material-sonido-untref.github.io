@@ -99,7 +99,7 @@ export default function Privacidad() {
 
 function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col gap-3 leading-relaxed">
+    <section className="tarjeta flex flex-col gap-3 p-6 leading-relaxed">
       <h2 className="font-display text-xl font-bold uppercase tracking-wide">{titulo}</h2>
       {children}
     </section>
