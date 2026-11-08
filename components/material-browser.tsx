@@ -1,7 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   ExternalLink,
   FileText,
@@ -40,6 +42,98 @@ function compararPorOrden(orden: Orden) {
     orden === 'utiles'
       ? b.votos - a.votos || b.descargas - a.descargas || b.fecha.localeCompare(a.fecha)
       : b.fecha.localeCompare(a.fecha)
+}
+
+const POR_PAGINA = 10
+
+/** Números de página a mostrar: todos si son pocos; si no, los extremos y los vecinos de la actual. */
+function paginasVisibles(actual: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const cercanas = [1, actual - 1, actual, actual + 1, total].filter((n) => n >= 1 && n <= total)
+  const unicas = [...new Set(cercanas)].sort((a, b) => a - b)
+  const resultado: (number | '…')[] = []
+  unicas.forEach((n, i) => {
+    if (i > 0 && n - unicas[i - 1] > 1) resultado.push('…')
+    resultado.push(n)
+  })
+  return resultado
+}
+
+function Paginacion({
+  pagina,
+  total,
+  cantidad,
+  onCambio,
+}: {
+  pagina: number
+  total: number
+  cantidad: number
+  onCambio: (pagina: number) => void
+}) {
+  const desde = (pagina - 1) * POR_PAGINA + 1
+  const hasta = Math.min(pagina * POR_PAGINA, cantidad)
+  const flecha =
+    'inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-sm transition-colors hover:border-primary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40'
+
+  return (
+    <nav
+      aria-label="Páginas de material"
+      className="flex flex-col items-center gap-3 border-t border-border px-4 py-3 sm:flex-row sm:justify-between"
+    >
+      <p className="text-xs text-muted-foreground tabular-nums">
+        Mostrando {desde}–{hasta} de {cantidad}
+      </p>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onCambio(pagina - 1)}
+          disabled={pagina === 1}
+          className={cn(flecha, 'text-muted-foreground')}
+        >
+          <ChevronLeft className="size-4" aria-hidden="true" />
+          Anterior
+        </button>
+        <ol className="hidden items-center gap-1 sm:flex">
+          {paginasVisibles(pagina, total).map((n, i) =>
+            n === '…' ? (
+              <li key={`salto-${i}`} aria-hidden="true" className="px-1 text-sm text-muted-foreground">
+                …
+              </li>
+            ) : (
+              <li key={n}>
+                <button
+                  type="button"
+                  onClick={() => onCambio(n)}
+                  aria-current={n === pagina ? 'page' : undefined}
+                  aria-label={`Página ${n}`}
+                  className={cn(
+                    'flex size-9 items-center justify-center rounded-lg text-sm tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+                    n === pagina
+                      ? 'bg-primary font-semibold text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  {n}
+                </button>
+              </li>
+            ),
+          )}
+        </ol>
+        <span className="px-2 text-sm text-muted-foreground tabular-nums sm:hidden">
+          {pagina} / {total}
+        </span>
+        <button
+          type="button"
+          onClick={() => onCambio(pagina + 1)}
+          disabled={pagina === total}
+          className={cn(flecha, 'text-muted-foreground')}
+        >
+          Siguiente
+          <ChevronRight className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+    </nav>
+  )
 }
 
 function Segmentado<T extends string>({
@@ -113,6 +207,25 @@ export function MaterialBrowser() {
       .sort(compararPorOrden(orden))
   }, [materias, materiaActiva, tipo, busqueda, orden])
 
+  // La página se guarda junto con los filtros que la generaron: si cambia
+  // cualquier filtro, se vuelve a la primera (y no a una página vieja si se
+  // regresa a un filtro anterior).
+  const filtros = [materiaActiva, tipo, busqueda, orden].join('|')
+  const [paginado, setPaginado] = useState({ filtros, pagina: 1 })
+  if (paginado.filtros !== filtros) setPaginado({ filtros, pagina: 1 })
+  const totalPaginas = Math.max(1, Math.ceil(filas.length / POR_PAGINA))
+  const pagina = Math.min(paginado.filtros === filtros ? paginado.pagina : 1, totalPaginas)
+  const visibles = filas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA)
+  const listaRef = useRef<HTMLDivElement>(null)
+
+  function irAPagina(nueva: number) {
+    setPaginado({ filtros, pagina: Math.min(Math.max(1, nueva), totalPaginas) })
+    const lista = listaRef.current
+    if (lista && lista.getBoundingClientRect().top < 0) {
+      lista.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
   return (
     <section aria-labelledby="buscar-title" className="flex min-w-0 flex-col">
       <h2 id="buscar-title" className="sr-only">
@@ -130,7 +243,7 @@ export function MaterialBrowser() {
         />
       </div>
 
-      <div className="tarjeta flex flex-col overflow-hidden">
+      <div ref={listaRef} className="tarjeta flex scroll-mt-4 flex-col overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-border p-4">
           <label className="relative flex-1">
             <span className="sr-only">Buscar por nombre o materia</span>
@@ -188,11 +301,21 @@ export function MaterialBrowser() {
                 : 'No hay material que coincida. Si lo tenés, subilo.'}
             </p>
           ) : (
-            <ul className="divide-y divide-border">
-              {filas.map((a) => (
-                <FilaMaterial key={a.clave} archivo={a} descargable={descargable} />
-              ))}
-            </ul>
+            <>
+              <ul className="divide-y divide-border">
+                {visibles.map((a) => (
+                  <FilaMaterial key={a.clave} archivo={a} descargable={descargable} />
+                ))}
+              </ul>
+              {totalPaginas > 1 && (
+                <Paginacion
+                  pagina={pagina}
+                  total={totalPaginas}
+                  cantidad={filas.length}
+                  onCambio={irAPagina}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
