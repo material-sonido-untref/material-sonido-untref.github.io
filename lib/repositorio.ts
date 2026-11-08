@@ -38,6 +38,12 @@ export interface Usuario {
   rol: Rol
 }
 
+/** Pedido para ser colaborador; solo llega si está pendiente o fue rechazado. */
+export interface Solicitud {
+  estado: 'pendiente' | 'rechazada'
+  fecha: string
+}
+
 export function puedeDescargar(rol: Rol) {
   return rol === 'lector' || rol === 'colaborador' || rol === 'admin'
 }
@@ -95,8 +101,21 @@ async function enviar<T>(cuerpo: Record<string, unknown>): Promise<T> {
 }
 
 export async function iniciarSesion(token: string) {
-  const { usuario } = await enviar<{ usuario: Usuario }>({ accion: 'sesion', token })
-  return usuario
+  const { usuario, solicitud } = await enviar<{ usuario: Usuario; solicitud: Solicitud | null }>({
+    accion: 'sesion',
+    token,
+  })
+  return { usuario, solicitud }
+}
+
+export async function solicitarColaborador(token: string, curso: string, motivo: string) {
+  const { solicitud } = await enviar<{ solicitud: Solicitud }>({
+    accion: 'solicitar',
+    token,
+    curso,
+    motivo,
+  })
+  return solicitud
 }
 
 export async function pedirEnlace(token: string, clave: string) {

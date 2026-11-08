@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { GOOGLE_CLIENT_ID } from '@/lib/config'
-import { iniciarSesion, type Usuario } from '@/lib/repositorio'
+import { iniciarSesion, type Solicitud, type Usuario } from '@/lib/repositorio'
 
 interface GoogleIdentity {
   accounts: {
@@ -43,6 +43,8 @@ interface TokenGuardado {
 interface ValorSesion {
   estado: Estado
   usuario: Usuario | null
+  solicitud: Solicitud | null
+  setSolicitud(solicitud: Solicitud | null): void
   error: string | null
   googleListo: boolean
   /** Devuelve un token vigente o tira un error con un mensaje para mostrar. */
@@ -107,6 +109,7 @@ function cargarScriptGoogle(alCargar: () => void) {
 export function SesionProvider({ children }: { children: React.ReactNode }) {
   const [estado, setEstado] = useState<Estado>('cargando')
   const [usuario, setUsuario] = useState<Usuario | null>(null)
+  const [solicitud, setSolicitud] = useState<Solicitud | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [googleListo, setGoogleListo] = useState(false)
   const tokenRef = useRef<TokenGuardado | null>(null)
@@ -115,6 +118,7 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
     tokenRef.current = null
     escribirGuardado(null)
     setUsuario(null)
+    setSolicitud(null)
     setEstado('anonimo')
   }, [])
 
@@ -126,7 +130,8 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
       try {
         const datos = await iniciarSesion(guardado.token)
         escribirGuardado(guardado)
-        setUsuario(datos)
+        setUsuario(datos.usuario)
+        setSolicitud(datos.solicitud)
         setEstado('conectado')
       } catch (err) {
         olvidarSesion()
@@ -177,8 +182,8 @@ export function SesionProvider({ children }: { children: React.ReactNode }) {
   }, [olvidarSesion])
 
   const valor = useMemo<ValorSesion>(
-    () => ({ estado, usuario, error, googleListo, obtenerToken, cerrarSesion }),
-    [estado, usuario, error, googleListo, obtenerToken, cerrarSesion],
+    () => ({ estado, usuario, solicitud, setSolicitud, error, googleListo, obtenerToken, cerrarSesion }),
+    [estado, usuario, solicitud, error, googleListo, obtenerToken, cerrarSesion],
   )
 
   return <ContextoSesion.Provider value={valor}>{children}</ContextoSesion.Provider>

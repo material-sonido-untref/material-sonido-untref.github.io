@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle2, Circle, FileUp, Loader2, Lock, X } from 'lucide-react'
 import { BotonGoogle } from '@/components/boton-google'
+import { PedidoColaborador } from '@/components/pedido-colaborador'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -75,13 +76,7 @@ export function UploadForm() {
       ) : usuario.rol === 'bloqueado' ? (
         <p className="text-sm text-destructive">Tu cuenta no tiene permiso para subir material.</p>
       ) : (
-        <div className="flex flex-col gap-2 text-sm leading-relaxed">
-          <p className="font-medium">Para subir necesitás ser colaborador.</p>
-          <p className="text-muted-foreground">
-            Pedile a un admin que te habilite y pasale tu mail:{' '}
-            <span className="font-medium text-foreground">{usuario.email}</span>
-          </p>
-        </div>
+        <PedidoColaborador />
       )}
     </MarcoSubida>
   )
